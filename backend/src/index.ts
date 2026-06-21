@@ -39,7 +39,9 @@ import {
 import { issueBootstrapSetupCodeIfRequired } from "./auth/bootstrapSetupCode";
 
 const backendRoot = path.resolve(__dirname, "../");
-console.log("Resolved DATABASE_URL:", process.env.DATABASE_URL);
+if (config.nodeEnv !== "production") {
+  console.log("Resolved DATABASE_URL:", process.env.DATABASE_URL);
+}
 
 const normalizeOrigins = (rawOrigins?: string | null): string[] => {
   const fallback = "http://localhost:6767";
@@ -662,23 +664,25 @@ const isMain =
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   typeof require !== "undefined" && require.main === module;
 
-// Snapshot cleanup: delete snapshots older than 2 days (runs hourly)
 const SNAPSHOT_RETENTION_MS = 2 * 24 * 60 * 60 * 1000;
-setInterval(async () => {
-  try {
-    const cutoff = new Date(Date.now() - SNAPSHOT_RETENTION_MS);
-    const result = await prisma.drawingSnapshot.deleteMany({
-      where: { createdAt: { lt: cutoff } },
-    });
-    if (result.count > 0) {
-      console.log(`[Cleanup] Deleted ${result.count} old drawing snapshots`);
-    }
-  } catch (err) {
-    console.error("[Cleanup] Snapshot cleanup failed:", err);
-  }
-}, 60 * 60 * 1000);
+let snapshotCleanupInterval: NodeJS.Timeout | undefined;
 
 if (isMain) {
+  // Snapshot cleanup: delete snapshots older than 2 days (runs hourly)
+  snapshotCleanupInterval = setInterval(async () => {
+    try {
+      const cutoff = new Date(Date.now() - SNAPSHOT_RETENTION_MS);
+      const result = await prisma.drawingSnapshot.deleteMany({
+        where: { createdAt: { lt: cutoff } },
+      });
+      if (result.count > 0) {
+        console.log(`[Cleanup] Deleted ${result.count} old drawing snapshots`);
+      }
+    } catch (err) {
+      console.error("[Cleanup] Snapshot cleanup failed:", err);
+    }
+  }, 60 * 60 * 1000);
+
   httpServer.listen(PORT, async () => {
     await initializeUploadDir();
     try {
@@ -695,4 +699,49 @@ if (isMain) {
     console.log(`Environment: ${config.nodeEnv}`);
     console.log(`Frontend URL: ${config.frontendUrl}`);
   });
+
+  let isShuttingDown = false;
+  const gracefulShutdown = (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`\n[Server] Received ${signal}, starting graceful shutdown...`);
+
+    if (snapshotCleanupInterval) {
+      clearInterval(snapshotCleanupInterval);
+      console.log("[Server] Snapshot cleanup interval cleared.");
+    }
+
+    // Force exit after 10s if shutdown hangs
+    const forceExitTimeout = setTimeout(() => {
+      console.error("[Server] Graceful shutdown timed out, forcing exit.");
+      process.exit(1);
+    }, 10000);
+    forceExitTimeout.unref();
+
+    // Close Socket.IO server (this disconnects all active sockets)
+    io.close();
+    console.log("[Server] Socket.IO server closed.");
+
+    // Close HTTP server (this stops accepting new HTTP connections)
+    httpServer.close(async (err) => {
+      if (err) {
+        console.error("[Server] Error closing HTTP server:", err);
+      } else {
+        console.log("[Server] HTTP server closed.");
+      }
+
+      try {
+        await prisma.$disconnect();
+        console.log("[Server] Database connection closed.");
+        clearTimeout(forceExitTimeout);
+        process.exit(0);
+      } catch (dbErr) {
+        console.error("[Server] Error disconnecting database:", dbErr);
+        process.exit(1);
+      }
+    });
+  };
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 }

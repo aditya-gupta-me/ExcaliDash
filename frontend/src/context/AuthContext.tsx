@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -184,7 +184,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     loadUser();
   }, [loadUser]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       if (authEnabled === false) {
         throw new Error("Authentication is disabled");
@@ -211,9 +211,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       throw error instanceof Error ? error : new Error('Login failed');
     }
-  };
+  }, [authEnabled]);
 
-  const register = async (email: string, password: string, name: string, setupCode?: string) => {
+  const register = useCallback(async (email: string, password: string, name: string, setupCode?: string) => {
     try {
       if (authEnabled === false) {
         throw new Error("Authentication is disabled");
@@ -240,39 +240,56 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       throw error instanceof Error ? error : new Error('Registration failed');
     }
-  };
+  }, [authEnabled]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     void authLogout().catch(() => undefined);
     localStorage.removeItem(USER_KEY);
     setUser(null);
     setTimeout(() => {
       navigate('/login');
     }, 0);
-  };
+  }, [navigate]);
+
+  const contextValue = useMemo(() => ({
+    user,
+    loading,
+    authEnabled,
+    registrationEnabled,
+    authStatusError,
+    authMode,
+    oidcEnabled,
+    oidcEnforced,
+    oidcProvider,
+    bootstrapRequired,
+    authOnboardingRequired,
+    authOnboardingMode,
+    login,
+    register,
+    logout,
+    retryAuthStatus: loadUser,
+    isAuthenticated: !!user,
+  }), [
+    user,
+    loading,
+    authEnabled,
+    registrationEnabled,
+    authStatusError,
+    authMode,
+    oidcEnabled,
+    oidcEnforced,
+    oidcProvider,
+    bootstrapRequired,
+    authOnboardingRequired,
+    authOnboardingMode,
+    login,
+    register,
+    logout,
+    loadUser,
+  ]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        authEnabled,
-        registrationEnabled,
-        authStatusError,
-        authMode,
-        oidcEnabled,
-        oidcEnforced,
-        oidcProvider,
-        bootstrapRequired,
-        authOnboardingRequired,
-        authOnboardingMode,
-        login,
-        register,
-        logout,
-        retryAuthStatus: loadUser,
-        isAuthenticated: !!user,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

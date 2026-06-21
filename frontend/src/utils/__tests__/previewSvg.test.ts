@@ -42,4 +42,20 @@ describe("normalizePreviewSvg", () => {
 
     expect(normalized).toContain('fill="transparent"');
   });
+
+  it("sanitizes dangerous tags and scripts in the SVG preview", () => {
+    const raw = [
+      '<svg viewBox="0 0 100 50">',
+      '<script>alert("XSS")</script>',
+      '<path d="M0 0 L20 20" onload="alert(1)"></path>',
+      "</svg>",
+    ].join("");
+
+    const normalized = normalizePreviewSvg(raw);
+
+    expect(normalized).not.toContain("<script>");
+    expect(normalized).not.toContain("onload");
+    expect(normalized).toContain('viewBox="0 0 100 50"');
+    expect(normalized).toContain("path");
+  });
 });

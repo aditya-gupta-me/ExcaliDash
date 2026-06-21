@@ -1,3 +1,5 @@
+import DOMPurify from "dompurify";
+
 const parseDimension = (value: string | null): number | null => {
   if (!value) return null;
   const parsed = Number.parseFloat(value);
@@ -70,12 +72,17 @@ export const normalizePreviewSvg = (preview: string | null | undefined): string 
     return preview ?? null;
   }
 
+  const sanitized = DOMPurify.sanitize(preview, { USE_PROFILES: { svg: true } });
+  if (sanitized.trim().length === 0) {
+    return null;
+  }
+
   if (typeof DOMParser === "undefined") {
-    return preview;
+    return sanitized;
   }
 
   try {
-    const doc = new DOMParser().parseFromString(preview, "image/svg+xml");
+    const doc = new DOMParser().parseFromString(sanitized, "image/svg+xml");
     const svg = doc.documentElement;
     if (!svg || svg.tagName.toLowerCase() !== "svg") {
       return preview;

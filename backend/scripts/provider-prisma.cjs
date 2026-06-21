@@ -12,7 +12,12 @@ const schemaFile = path.resolve(prismaDir, "schema.prisma");
 const localTmpRoot = path.resolve(backendRoot, ".prisma-workspaces.tmp");
 const validProviders = new Set(["sqlite", "postgresql"]);
 
-const npxBin = process.platform === "win32" ? "npx.cmd" : "npx";
+const resolvePrismaCli = () =>
+  path.join(
+    path.dirname(require.resolve("prisma/package.json", { paths: [backendRoot] })),
+    "build",
+    "index.js"
+  );
 
 const inferProvider = (env = process.env) => {
   const configured = String(env.DATABASE_PROVIDER || "").trim();
@@ -156,8 +161,8 @@ const runPrisma = (args, options = {}) => {
   const workspace = createProviderWorkspace(provider);
   try {
     const result = execFileSync(
-      npxBin,
-      ["prisma", ...withSchemaArg(args, workspace.schema)],
+      process.execPath,
+      [resolvePrismaCli(), ...withSchemaArg(args, workspace.schema)],
       {
         cwd: backendRoot,
         env,

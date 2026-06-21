@@ -1378,7 +1378,7 @@ export const Editor: React.FC = () => {
     id,
     recordElementVersion,
     buildEmptyScene,
-    user,
+    user?.id,
     navigate,
     location.pathname,
     location.search,

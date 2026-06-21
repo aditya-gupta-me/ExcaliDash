@@ -21,5 +21,5 @@ export const useEditorIdentity = (user: AuthUser): UserIdentity => {
       };
     }
     return getUserIdentity();
-  }, [user]);
+  }, [user?.id, user?.name]);
 };
