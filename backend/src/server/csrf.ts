@@ -49,12 +49,14 @@ export const registerCsrfProtection = ({
   };
 
   const setCsrfClientCookie = (req: express.Request, res: express.Response, value: string): void => {
-    const secure = requestUsesHttps(req) ? "; Secure" : "";
+    const isSecure = requestUsesHttps(req);
+    const secureOpt = isSecure ? "; Secure" : "";
+    const sameSiteOpt = isSecure ? "None" : "Lax";
     res.append(
       "Set-Cookie",
       `${CSRF_CLIENT_COOKIE_NAME}=${encodeURIComponent(
         value
-      )}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${CSRF_CLIENT_COOKIE_MAX_AGE_SECONDS}${secure}`
+      )}; Path=/; HttpOnly; SameSite=${sameSiteOpt}; Max-Age=${CSRF_CLIENT_COOKIE_MAX_AGE_SECONDS}${secureOpt}`
     );
   };
 

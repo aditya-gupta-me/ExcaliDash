@@ -47,12 +47,15 @@ const requestUsesHttps = (req: Request): boolean => {
 
 const shouldUseSecureCookies = (req: Request): boolean => requestUsesHttps(req);
 
-const baseCookieOptions = (req: Request) => ({
-  httpOnly: true,
-  secure: shouldUseSecureCookies(req),
-  sameSite: "lax" as const,
-  path: "/",
-});
+const baseCookieOptions = (req: Request) => {
+  const isSecure = shouldUseSecureCookies(req);
+  return {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: (isSecure ? "none" : "lax") as "none" | "lax",
+    path: "/",
+  };
+};
 
 export const setAuthCookies = (
   req: Request,
